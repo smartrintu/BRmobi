@@ -1,0 +1,20 @@
+<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin Upload</title>
+<style>body{font-family:sans-serif;max-width:480px;margin:30px auto;padding:0 16px}input,textarea,button{display:block;width:100%;margin:10px 0;padding:10px;box-sizing:border-box}</style>
+<h2>Movie Upload</h2>
+<input id="key" placeholder="Admin key">
+<input id="title" placeholder="Title">
+<textarea id="desc" placeholder="Description"></textarea>
+<label>Video</label><input id="video" type="file" accept="video/*">
+<label>Thumbnail</label><input id="thumb" type="file" accept="image/*">
+<button onclick="up()">Upload</button><p id="msg"></p>
+<script>
+async function up(){
+  const f=new FormData();
+  f.append('title',title.value);f.append('description',desc.value);
+  f.append('video',video.files[0]);if(thumb.files[0])f.append('thumb',thumb.files[0]);
+  msg.textContent='Uploading...';
+  const r=await fetch('/api/movies',{method:'POST',headers:{'x-admin-key':key.value},body:f});
+  msg.textContent=r.ok?'Done!':'Error '+r.status;
+}
+</script>
