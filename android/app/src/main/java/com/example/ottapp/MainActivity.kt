@@ -8,9 +8,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,11 +27,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme(colorScheme = darkColorScheme()) { App() } }
+        setContent {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFFE50914))) { App() }
+        }
     }
 }
 
@@ -46,27 +51,47 @@ fun App() {
 fun HomeScreen(onOpen: (Movie) -> Unit) {
     var movies by remember { mutableStateOf<List<Movie>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var reload by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(reload) {
-        loading = true; error = null
-        try { movies = Api.movies() } catch (e: Exception) { error = "Load nahi hua: ${e.message}" }
-        loading = false
+    fun load(pull: Boolean) {
+        scope.launch {
+            if (pull) refreshing = true else loading = true
+            error = null
+            try { movies = Api.movies() } catch (e: Exception) { error = "Load nahi hua: ${e.message}" }
+            refreshing = false; loading = false
+        }
     }
+    LaunchedEffect(Unit) { load(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("OTT App") }) }) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-            when {
-                loading -> CircularProgressIndicator()
-                error != null -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(error!!); Button(onClick = { reload++ }) { Text("Retry") }
-                }
-                movies.isEmpty() -> Text("Abhi koi movie nahi hai")
-                else -> LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("OTT App") },
+            actions = { TextButton(onClick = { load(true) }) { Text("Refresh") } })
+    }) { pad ->
+        PullToRefreshBox(isRefreshing = refreshing, onRefresh = { load(true) },
+            modifier = Modifier.padding(pad).fillMaxSize()) {
+            if (loading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else {
+                val err = error
+                LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (err != null) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(err); Spacer(Modifier.height(8.dp))
+                                Button(onClick = { load(true) }) { Text("Retry") }
+                            }
+                        }
+                    } else if (movies.isEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Text("Abhi koi movie nahi hai. Neeche kheench ke refresh karo.",
+                                Modifier.fillMaxWidth().padding(24.dp))
+                        }
+                    }
                     items(movies) { m ->
                         Column(Modifier.clickable { onOpen(m) }) {
                             AsyncImage(m.thumbUrl.ifEmpty { null }, m.title,

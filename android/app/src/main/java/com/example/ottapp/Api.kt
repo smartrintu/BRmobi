@@ -10,7 +10,6 @@ data class Movie(val id: String, val title: String, val description: String,
                  val videoUrl: String, val thumbUrl: String)
 
 object Api {
-    // Emulator: 10.0.2.2 = your PC. Real phone/production: put your server URL (e.g. https://yourdomain.com)
     const val BASE_URL = "https://shiny-memory-jwq6jpjr9pfpx46-3000.app.github.dev"
 
     suspend fun movies(): List<Movie> = withContext(Dispatchers.IO) {

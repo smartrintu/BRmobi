@@ -1,20 +1,117 @@
-<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin Upload</title>
-<style>body{font-family:sans-serif;max-width:480px;margin:30px auto;padding:0 16px}input,textarea,button{display:block;width:100%;margin:10px 0;padding:10px;box-sizing:border-box}</style>
-<h2>Movie Upload</h2>
-<input id="key" placeholder="Admin key">
-<input id="title" placeholder="Title">
-<textarea id="desc" placeholder="Description"></textarea>
-<label>Video</label><input id="video" type="file" accept="video/*">
-<label>Thumbnail</label><input id="thumb" type="file" accept="image/*">
-<button onclick="up()">Upload</button><p id="msg"></p>
+<!doctype html>
+<html lang="hi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Movie Studio</title>
+<style>
+:root{--bg:#0e0c18;--card:#171428;--line:#2a2545;--red:#e50914;--tx:#f4f2ff;--mut:#9a95b8}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1000px 420px at 50% -10%,#331550,var(--bg));color:var(--tx);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:560px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:center;gap:12px;margin:8px 0 22px}
+header h1{font-size:22px;margin:0}
+header p{margin:2px 0 0;color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:22px}
+h2{font-size:16px;margin:0 0 4px}
+label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:16px 0 6px}
+input[type=text],input[type=password],textarea{width:100%;background:#0f0d1c;border:1px solid var(--line);color:var(--tx);border-radius:12px;padding:12px;font-size:15px;outline:none}
+input:focus,textarea:focus{border-color:var(--red)}
+textarea{min-height:84px;resize:vertical;font-family:inherit}
+.drop{display:flex;align-items:center;gap:12px;border:2px dashed var(--line);border-radius:14px;padding:14px;cursor:pointer;color:var(--mut)}
+.drop:hover{border-color:var(--red);color:var(--tx)}
+.drop .ic{font-size:26px}
+.drop b{display:block;color:var(--tx);font-size:14px;word-break:break-all;font-weight:600}
+.drop small{font-size:12px}
+.drop img{width:48px;height:72px;object-fit:cover;border-radius:8px;display:none}
+input[type=file]{display:none}
+.go{width:100%;margin-top:20px;padding:15px;border:0;border-radius:12px;background:linear-gradient(90deg,#e50914,#ff4d5a);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.go:disabled{opacity:.5}
+.bar{height:8px;background:#0f0d1c;border-radius:8px;overflow:hidden;margin-top:14px;display:none}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e50914,#ff4d5a);transition:width .2s}
+#msg{margin-top:10px;font-size:14px;min-height:20px;color:var(--mut)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.m{position:relative}
+.m img,.m .ph{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:12px;background:#0f0d1c;display:block}
+.m .ph{display:flex;align-items:center;justify-content:center;font-size:28px}
+.m span{display:block;font-size:12px;margin-top:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.m button{position:absolute;top:6px;right:6px;border:0;border-radius:8px;background:#000b;color:#fff;padding:4px 8px;cursor:pointer}
+.empty{color:var(--mut);font-size:14px;margin-top:12px}
+</style></head><body>
+<div class="wrap">
+  <header>
+    <svg width="46" height="46" viewBox="0 0 108 108"><rect width="108" height="108" rx="24" fill="#14121F"/>
+      <path fill="#E50914" d="M32,28h44a6,6 0 0 1 6,6v26a6,6 0 0 1 -6,6h-44a6,6 0 0 1 -6,-6v-26a6,6 0 0 1 6,-6z"/>
+      <path fill="#fff" d="M48,38l18,9l-18,9z"/><path fill="#fff" d="M51,66h6v8h-6z"/>
+      <path fill="#fff" d="M38,74h32a2,2 0 0 1 0,4h-32a2,2 0 0 1 0,-4z"/></svg>
+    <div><h1>Movie Studio</h1><p>Nayi movie upload karo</p></div>
+  </header>
+
+  <div class="card">
+    <h2>Upload</h2>
+    <label>Admin key</label>
+    <input id="key" type="password" placeholder="Apni secret key">
+    <label>Title</label>
+    <input id="title" type="text" placeholder="Movie ka naam">
+    <label>Description</label>
+    <textarea id="desc" placeholder="Short kahani / details"></textarea>
+    <label>Video</label>
+    <div class="drop" onclick="vf.click()"><span class="ic">🎬</span>
+      <div><b id="vn">Video chuno</b><small>MP4 sabse best chalta hai</small></div></div>
+    <input id="vf" type="file" accept="video/*">
+    <label>Poster / Thumbnail</label>
+    <div class="drop" onclick="tf.click()"><img id="tp" alt=""><span class="ic" id="ti">🖼️</span>
+      <div><b id="tn">Poster chuno (optional)</b><small>Tall image (2:3) best lagti hai</small></div></div>
+    <input id="tf" type="file" accept="image/*">
+    <button class="go" id="go" onclick="upload()">Upload karo</button>
+    <div class="bar" id="bar"><i id="fill"></i></div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Uploaded movies</h2>
+    <div id="list" class="grid"></div>
+  </div>
+</div>
 <script>
-async function up(){
+const $=id=>document.getElementById(id);
+$('key').value=localStorage.getItem('adminKey')||'';
+function say(t,c){$('msg').textContent=t;$('msg').style.color=c||'#9a95b8'}
+$('vf').onchange=e=>{const f=e.target.files[0];$('vn').textContent=f?f.name+' ('+(f.size/1048576).toFixed(1)+' MB)':'Video chuno'};
+$('tf').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  $('tp').src=URL.createObjectURL(f);$('tp').style.display='block';$('ti').style.display='none';$('tn').textContent=f.name};
+function reset(){$('title').value='';$('desc').value='';$('vf').value='';$('tf').value='';
+  $('vn').textContent='Video chuno';$('tn').textContent='Poster chuno (optional)';
+  $('tp').style.display='none';$('ti').style.display='block';$('bar').style.display='none';$('fill').style.width='0'}
+function upload(){
+  const v=$('vf').files[0];
+  if(!v) return say('Pehle video chuno','#ff6b6b');
+  if(!$('key').value) return say('Admin key daalo','#ff6b6b');
+  localStorage.setItem('adminKey',$('key').value);
   const f=new FormData();
-  f.append('title',title.value);f.append('description',desc.value);
-  f.append('video',video.files[0]);if(thumb.files[0])f.append('thumb',thumb.files[0]);
-  msg.textContent='Uploading...';
-  const r=await fetch('/api/movies',{method:'POST',headers:{'x-admin-key':key.value},body:f});
-  msg.textContent=r.ok?'Done!':'Error '+r.status;
+  f.append('title',$('title').value||v.name);f.append('description',$('desc').value);f.append('video',v);
+  if($('tf').files[0]) f.append('thumb',$('tf').files[0]);
+  const x=new XMLHttpRequest();x.open('POST','/api/movies');x.setRequestHeader('x-admin-key',$('key').value);
+  $('go').disabled=true;$('bar').style.display='block';
+  x.upload.onprogress=e=>{if(e.lengthComputable){const p=Math.round(e.loaded/e.total*100);$('fill').style.width=p+'%';say('Uploading '+p+'%')}};
+  x.onload=()=>{$('go').disabled=false;
+    if(x.status==200){say('Upload ho gaya ✅','#4ade80');reset();load()}
+    else say(x.status==401?'Admin key galat hai':'Error '+x.status,'#ff6b6b')};
+  x.onerror=()=>{$('go').disabled=false;say('Network error','#ff6b6b')};
+  x.send(f);
 }
-</script>
+async function load(){
+  const r=await fetch('/api/movies');const a=await r.json();const L=$('list');L.innerHTML='';
+  if(!a.length){L.outerHTML='<div class="empty" id="list">Abhi koi movie nahi hai</div>';return}
+  if(L.classList&&!L.classList.contains('grid')) L.className='grid';
+  a.forEach(m=>{
+    const d=document.createElement('div');d.className='m';
+    d.innerHTML=(m.thumbPath?'<img src="'+m.thumbPath+'" alt="">':'<div class="ph">🎞️</div>')+'<button title="Delete">✕</button><span></span>';
+    d.querySelector('span').textContent=m.title;
+    d.querySelector('button').onclick=async()=>{
+      if(!confirm('"'+m.title+'" delete karein?'))return;
+      const k=$('key').value||localStorage.getItem('adminKey')||'';
+      const r=await fetch('/api/movies/'+m.id,{method:'DELETE',headers:{'x-admin-key':k}});
+      if(r.ok)load();else say('Delete ke liye sahi admin key daalo','#ff6b6b')};
+    L.appendChild(d)});
+}
+load();
+</script></body></html>
