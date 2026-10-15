@@ -11,7 +11,7 @@ data class Movie(val id: String, val title: String, val description: String,
 
 object Api {
     // Emulator: 10.0.2.2 = your PC. Real phone/production: put your server URL (e.g. https://yourdomain.com)
-    const val BASE_URL = "http://10.0.2.2:3000"
+    const val BASE_URL = "https://shiny-memory-jwq6jpjr9pfpx46-3000.app.github.dev"
 
     suspend fun movies(): List<Movie> = withContext(Dispatchers.IO) {
         val c = URL("$BASE_URL/api/movies").openConnection() as HttpURLConnection
