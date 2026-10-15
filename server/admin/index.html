@@ -39,6 +39,11 @@ input[type=file]{display:none}
 .m span{display:block;font-size:12px;margin-top:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .m button{position:absolute;top:6px;right:6px;border:0;border-radius:8px;background:#000b;color:#fff;padding:4px 8px;cursor:pointer}
 .empty{color:var(--mut);font-size:14px;margin-top:12px}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:18px;padding:18px;width:min(520px,92vw)}
+dialog::backdrop{background:#000a}
+.row{display:flex;gap:10px}.go.sec{background:#2a2545}
+.m .ed{right:auto;left:6px}
+.empty{grid-column:1/-1}
 </style></head><body>
 <div class="wrap">
   <header>
@@ -75,6 +80,16 @@ input[type=file]{display:none}
     <div id="list" class="grid"></div>
   </div>
 </div>
+<dialog id="dlg"><h2>Movie edit karo</h2>
+  <label>Title</label><input id="et" type="text">
+  <label>Description</label><textarea id="edesc"></textarea>
+  <label>Naya poster (optional)</label>
+  <div class="drop" onclick="document.getElementById('ef').click()"><img id="ep" alt=""><span class="ic" id="ei">🖼️</span>
+    <div><b id="en">Poster badlo (optional)</b></div></div>
+  <input id="ef" type="file" accept="image/*">
+  <div class="row"><button class="go sec" onclick="document.getElementById('dlg').close()">Cancel</button>
+  <button class="go" id="sv" onclick="saveEdit()">Save</button></div>
+  <div id="emsg" style="margin-top:10px;font-size:14px"></div></dialog>
 <script>
 const $=id=>document.getElementById(id);
 $('key').value=localStorage.getItem('adminKey')||'';
@@ -148,15 +163,34 @@ async function upload(){
   }catch(e){say(e.message,'#ff6b6b')}
   $('go').disabled=false;
 }
+let EDIT=null;
+function openEdit(m){
+  EDIT=m;$('et').value=m.title;$('edesc').value=m.description||'';$('ef').value='';
+  if(m.thumbPath){$('ep').src=m.thumbPath;$('ep').style.display='block';$('ei').style.display='none'}
+  else{$('ep').style.display='none';$('ei').style.display='block'}
+  $('en').textContent='Poster badlo (optional)';$('emsg').textContent='';$('dlg').showModal();
+}
+$('ef').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  $('ep').src=URL.createObjectURL(f);$('ep').style.display='block';$('ei').style.display='none';$('en').textContent=f.name};
+async function saveEdit(){
+  const key=$('key').value||localStorage.getItem('adminKey')||'';
+  const f=new FormData();f.append('title',$('et').value);f.append('description',$('edesc').value);
+  if($('ef').files[0]) f.append('thumb',$('ef').files[0]);
+  $('sv').disabled=true;
+  const r=await fetch('/api/movies/'+EDIT.id,{method:'PUT',headers:{'x-admin-key':key},body:f});
+  $('sv').disabled=false;
+  if(r.ok){$('dlg').close();load()}
+  else{$('emsg').textContent=r.status==401?'Admin key galat hai (upar wale card me daalo)':'Error '+r.status;$('emsg').style.color='#ff6b6b'}
+}
 async function load(){
   const r=await fetch('/api/movies');const a=await r.json();const L=$('list');L.innerHTML='';
-  if(!a.length){L.outerHTML='<div class="empty" id="list">Abhi koi movie nahi hai</div>';return}
-  if(L.classList&&!L.classList.contains('grid')) L.className='grid';
+  if(!a.length){L.innerHTML='<div class="empty">Abhi koi movie nahi hai</div>';return}
   a.forEach(m=>{
     const d=document.createElement('div');d.className='m';
-    d.innerHTML=(m.thumbPath?'<img src="'+m.thumbPath+'" alt="">':'<div class="ph">🎞️</div>')+'<button title="Delete">✕</button><span></span>';
+    d.innerHTML=(m.thumbPath?'<img src="'+m.thumbPath+'" alt="">':'<div class="ph">🎞️</div>')+'<button class="ed" title="Edit">✎</button><button class="del" title="Delete">✕</button><span></span>';
     d.querySelector('span').textContent=m.title;
-    d.querySelector('button').onclick=async()=>{
+    d.querySelector('.ed').onclick=()=>openEdit(m);
+    d.querySelector('.del').onclick=async()=>{
       if(!confirm('"'+m.title+'" delete karein?'))return;
       const k=$('key').value||localStorage.getItem('adminKey')||'';
       const r=await fetch('/api/movies/'+m.id,{method:'DELETE',headers:{'x-admin-key':k}});

@@ -65,6 +65,17 @@ app.post('/api/finish', auth, upload.single('thumb'), (q, s) => {
   s.json(m);
 });
 
+app.put('/api/movies/:id', auth, upload.single('thumb'), (q, s) => {
+  const all = read(), m = all.find(x => x.id === q.params.id);
+  if (!m) { if (q.file) fs.unlink(q.file.path, () => {}); return s.status(404).json({ error: 'not found' }); }
+  if (typeof q.body.title === 'string' && q.body.title.trim()) m.title = q.body.title.trim();
+  if (typeof q.body.description === 'string') m.description = q.body.description;
+  if (q.file) {
+    if (m.thumbPath) fs.unlink(path.join(__dirname, m.thumbPath), () => {});
+    m.thumbPath = '/uploads/' + q.file.filename;
+  }
+  write(all); s.json(m);
+});
 // Admin page ab seedha root URL par: https://<your-url>/   (/admin bhi chalega)
 app.use(express.static(path.join(__dirname, 'admin')));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));

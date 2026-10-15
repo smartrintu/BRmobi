@@ -27,6 +27,18 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import android.app.Activity
+import android.app.DownloadManager
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -107,24 +119,80 @@ fun HomeScreen(onOpen: (Movie) -> Unit) {
     }
 }
 
+tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+fun setFullscreen(activity: Activity?, on: Boolean) {
+    activity ?: return
+    val c = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+    if (on) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        c.hide(WindowInsetsCompat.Type.systemBars())
+    } else {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        c.show(WindowInsetsCompat.Type.systemBars())
+    }
+}
+
+fun downloadMovie(ctx: Context, m: Movie) {
+    val ext = m.videoUrl.substringAfterLast('.', "mp4").take(5)
+    val base = m.title.replace(Regex("[^A-Za-z0-9 _-]"), "").trim().ifEmpty { "movie" }
+    val name = "$base.$ext"
+    val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    fun req() = DownloadManager.Request(Uri.parse(m.videoUrl))
+        .setTitle(m.title).setDescription("Downloading")
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+    try {
+        dm.enqueue(req().setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name))
+    } catch (e: Exception) {
+        dm.enqueue(req().setDestinationInExternalFilesDir(ctx, Environment.DIRECTORY_DOWNLOADS, name))
+    }
+    Toast.makeText(ctx, "Download shuru ho gaya (notification dekho)", Toast.LENGTH_LONG).show()
+}
+
 @Composable
 fun PlayerScreen(movie: Movie, onBack: () -> Unit) {
     val ctx = LocalContext.current
+    val activity = remember { ctx.findActivity() }
+    var fullscreen by remember { mutableStateOf(false) }
     val player = remember(movie.id) {
         ExoPlayer.Builder(ctx).build().apply {
             setMediaItem(MediaItem.fromUri(movie.videoUrl)); prepare(); playWhenReady = true
         }
     }
     DisposableEffect(player) { onDispose { player.release() } }
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(factory = { PlayerView(it).apply { this.player = player } },
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
-        Column(Modifier.padding(16.dp)) {
-            Text(movie.title, style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(8.dp))
-            Text(movie.description)
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = onBack) { Text("Back") }
+    DisposableEffect(fullscreen) { setFullscreen(activity, fullscreen); onDispose { } }
+    DisposableEffect(Unit) { onDispose { setFullscreen(activity, false) } }
+    BackHandler(enabled = fullscreen) { fullscreen = false }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Column(Modifier.fillMaxSize()) {
+            AndroidView(
+                factory = { PlayerView(it).apply { this.player = player } },
+                modifier = if (fullscreen) Modifier.fillMaxWidth().weight(1f)
+                           else Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            if (!fullscreen) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(movie.title, style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(movie.description)
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { fullscreen = true }) { Text("Full screen") }
+                        Button(onClick = { downloadMovie(ctx, movie) }) { Text("Download") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onBack) { Text("Back") }
+                }
+            }
+        }
+        if (fullscreen) {
+            TextButton(onClick = { fullscreen = false },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) { Text("✕ Exit") }
         }
     }
 }
