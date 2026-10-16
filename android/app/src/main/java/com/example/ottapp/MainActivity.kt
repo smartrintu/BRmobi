@@ -68,13 +68,16 @@ import kotlin.math.roundToInt
 
 val Navy = Color(0xFF000A1E)
 val Blue = Color(0xFF1E90FF)
+val SoftBlue = Color(0xFF8FB8FF)
 const val FREE_SECONDS = 30 * 60L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Blue, background = Navy, surface = Navy)) { App() }
+            MaterialTheme(colorScheme = darkColorScheme(primary = Blue, background = Navy, surface = Navy)) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Navy, contentColor = Color.White) { App() }
+            }
         }
     }
 }
@@ -118,14 +121,17 @@ fun HomeScreen(st: AppState, onOpen: (Movie) -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var showPlayGuide by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     fun load(pull: Boolean) {
         scope.launch {
             if (pull) refreshing = true else loading = true
             error = null
-            try { movies = Api.movies() } catch (e: Exception) { error = "Load nahi hua: ${e.message}" }
+            try { movies = Api.movies() } catch (e: Exception) {
+                error = if (e is org.json.JSONException)
+                    "Server se sahi jawab nahi mila. Server chalu hai? (Codespace band ho gaya ho to usse start karke server chalao)"
+                else "Load nahi hua: ${e.message}"
+            }
             refreshing = false; loading = false
         }
     }
@@ -138,16 +144,15 @@ fun HomeScreen(st: AppState, onOpen: (Movie) -> Unit) {
                 Modifier.fillMaxWidth().height(160.dp).padding(top = 4.dp),
                 contentScale = ContentScale.Fit
             )
-            Row(Modifier.align(Alignment.TopEnd), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { load(true) }) { Text("Refresh", color = Color.White) }
-                TextButton(onClick = { showPlayGuide = true }) { Text("Play Store Guide", color = Color.White) }
-            }
+            TextButton(onClick = { load(true) }, modifier = Modifier.align(Alignment.TopEnd)) { Text("Refresh") }
         }
-        val status = if (st.subscribed)
-            "✅ Subscription active: " + DateFormat.getDateInstance().format(Date(st.subUntil))
-        else "Free dekhne ka time: ${st.freeLeft / 60} min baaki"
+        val status = when {
+            st.subUntil > System.currentTimeMillis() ->
+                "✅ Subscription active: " + DateFormat.getDateInstance().format(Date(st.subUntil))
+            else -> "Free dekhne ka time: ${st.freeLeft / 60} min baaki"
+        }
         Text(status, Modifier.fillMaxWidth().padding(bottom = 4.dp), fontSize = 12.sp,
-            textAlign = TextAlign.Center, color = Color(0xFF8FB8FF))
+            textAlign = TextAlign.Center, color = SoftBlue)
 
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { load(true) }, modifier = Modifier.fillMaxSize()) {
             if (loading) {
@@ -183,34 +188,6 @@ fun HomeScreen(st: AppState, onOpen: (Movie) -> Unit) {
             }
         }
     }
-    if (showPlayGuide) {
-        AlertDialog(
-            onDismissRequest = { showPlayGuide = false },
-            title = { Text("Google Play Store Guide", color = Color.White) },
-            text = {
-                Column(
-                    Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("1. App ka package name unique rakhein aur app icon taiyar karein.", color = Color(0xFFE3EAF5))
-                    Text("2. Release ke liye Android App Bundle (.aab) build karein.", color = Color(0xFFE3EAF5))
-                    Text("3. Release signing key banayein aur uska secure backup rakhein. Keystore/password kisi ke saath share na karein.", color = Color(0xFFE3EAF5))
-                    Text("4. Privacy Policy URL aur Play Console ka Data safety form sahi tarah bharein.", color = Color(0xFFE3EAF5))
-                    Text("5. App ke asli screenshots, app description, category aur contact details taiyar karein.", color = Color(0xFFE3EAF5))
-                    Text("6. Content rating questionnaire aur app access instructions complete karein.", color = Color(0xFFE3EAF5))
-                    Text("7. Play Console mein internal/closed testing karein aur console ke current testing rules follow karein.", color = Color(0xFFE3EAF5))
-                    Text("8. Production release submit karein; policy ya testing issue aaye to pehle use fix karein.", color = Color(0xFFE3EAF5))
-                    Text("Important: Movies/videos ke distribution rights hone chahiye. Sirf tutorial se approval guaranteed nahi hota.", color = Color(0xFFFFD180), fontWeight = FontWeight.SemiBold)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPlayGuide = false }) { Text("Close") }
-            },
-            containerColor = Color(0xFF17243B),
-            titleContentColor = Color.White,
-            textContentColor = Color(0xFFE3EAF5)
-        )
-    }
 }
 
 @Composable
@@ -222,16 +199,9 @@ fun MovieCard(m: Movie, onOpen: (Movie) -> Unit) {
                 .clip(RoundedCornerShape(10.dp)).background(Color(0xFF14213D)),
             contentScale = ContentScale.Crop
         )
-        Text(
-            m.title.ifBlank { "Untitled movie" },
-            Modifier.fillMaxWidth().padding(top = 6.dp),
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-            fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = Color(0xFFFFFFFF)
-        )
+        Text(m.title, Modifier.padding(top = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
         if (m.languages.isNotBlank())
-            Text(m.languages, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                fontSize = 11.sp, color = Color(0xFF9CC5FF))
+            Text(m.languages, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, color = SoftBlue)
     }
 }
 
@@ -466,53 +436,21 @@ fun PlayerScreen(movie: Movie, st: AppState, onBack: () -> Unit) {
             }
         }
         if (!fullscreen) {
-            Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                    .background(Color(0xFF080F20)).padding(16.dp)
-            ) {
-                Column(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF17243B)).padding(16.dp)
-                ) {
-                    Text(
-                        movie.title.ifBlank { "Untitled movie" },
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White, fontWeight = FontWeight.Bold,
-                        maxLines = 3, overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        movie.category + if (movie.languages.isNotBlank()) "  •  " + movie.languages else "",
-                        fontSize = 13.sp, color = Color(0xFF9CC5FF),
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                    if (movie.description.isNotBlank()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(movie.description, color = Color(0xFFE3EAF5), fontSize = 14.sp)
-                    }
-                }
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp)) {
+                Text(movie.title, style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text(
+                    movie.category + if (movie.languages.isNotBlank()) "  •  " + movie.languages else "",
+                    fontSize = 12.sp, color = SoftBlue, modifier = Modifier.padding(top = 4.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(movie.description, color = Color.White)
                 Spacer(Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = { fullscreen = true },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
-                    ) { Text("Full screen", color = Color.White, maxLines = 1) }
-                    Button(
-                        onClick = { downloadMovie(ctx, movie) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
-                    ) { Text("Download", color = Color.White, maxLines = 1) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { fullscreen = true }) { Text("Full screen") }
+                    Button(onClick = { downloadMovie(ctx, movie) }) { Text("Download") }
                 }
-                Spacer(Modifier.height(10.dp))
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF9CC5FF))
-                ) { Text("← Back") }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onBack) { Text("Back") }
             }
         }
     }
@@ -552,7 +490,7 @@ fun PlayerScreen(movie: Movie, st: AppState, onBack: () -> Unit) {
             text = {
                 Column {
                     Text("Aage dekhne ke liye subscription chahiye.")
-                    Text(Api.CONTACT_TEXT, fontSize = 12.sp, color = Color(0xFF8FB8FF),
+                    Text(Api.CONTACT_TEXT, fontSize = 12.sp, color = SoftBlue,
                         modifier = Modifier.padding(vertical = 8.dp))
                     OutlinedTextField(value = code, onValueChange = { code = it },
                         label = { Text("Subscription code") }, singleLine = true)

@@ -41,7 +41,7 @@ object Api {
                 BASE_URL + o.getString("videoPath"),
                 if (thumb.isEmpty()) "" else BASE_URL + thumb,
                 o.optString("category").ifBlank { "General" },
-                o.optString("languages").ifBlank { o.optString("language") }
+                o.optString("languages")
             )
         }
     }

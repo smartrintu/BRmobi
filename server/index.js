@@ -2,8 +2,9 @@ const express = require('express'), multer = require('multer'), fs = require('fs
       path = require('path'), crypto = require('crypto');
 const app = express();
 const ADMIN_KEY = process.env.ADMIN_KEY || 'change-me';
-const UP = path.join(__dirname, 'uploads'); fs.mkdirSync(UP, { recursive: true });
-const DB = path.join(__dirname, 'movies.json');
+const DATA = process.env.DATA_DIR || __dirname;   // hosting par persistent disk (/data)
+const UP = path.join(DATA, 'uploads'); fs.mkdirSync(UP, { recursive: true });
+const DB = path.join(DATA, 'movies.json');
 const read = () => fs.existsSync(DB) ? JSON.parse(fs.readFileSync(DB)) : [];
 const write = (a) => fs.writeFileSync(DB, JSON.stringify(a, null, 2));
 const upload = multer({ storage: multer.diskStorage({
@@ -25,7 +26,7 @@ app.post('/api/movies', auth, upload.fields([{ name: 'video', maxCount: 1 }, { n
   });
 app.delete('/api/movies/:id', auth, (q, s) => {
   const all = read(), m = all.find(x => x.id === q.params.id);
-  if (m) for (const p of [m.videoPath, m.thumbPath]) if (p) fs.unlink(path.join(__dirname, p), () => {});
+  if (m) for (const p of [m.videoPath, m.thumbPath]) if (p) fs.unlink(path.join(DATA, p), () => {});
   write(all.filter(x => x.id !== q.params.id)); s.json({ ok: true });
 });
 // ---- Chunked + parallel upload (badi files ke liye; proxy ki size limit bypass) ----
@@ -75,13 +76,13 @@ app.put('/api/movies/:id', auth, upload.single('thumb'), (q, s) => {
   if (typeof q.body.category === 'string') m.category = q.body.category.trim() || 'General';
   if (typeof q.body.language === 'string') m.language = q.body.language.trim();
   if (q.file) {
-    if (m.thumbPath) fs.unlink(path.join(__dirname, m.thumbPath), () => {});
+    if (m.thumbPath) fs.unlink(path.join(DATA, m.thumbPath), () => {});
     m.thumbPath = '/uploads/' + q.file.filename;
   }
   write(all); s.json(m);
 });
 // ---- Subscription codes ----
-const CODES = path.join(__dirname, 'codes.json');
+const CODES = path.join(DATA, 'codes.json');
 const readCodes = () => fs.existsSync(CODES) ? JSON.parse(fs.readFileSync(CODES)) : [];
 const writeCodes = (a) => fs.writeFileSync(CODES, JSON.stringify(a, null, 2));
 app.get('/api/codes', auth, (q, s) => s.json(readCodes().reverse()));

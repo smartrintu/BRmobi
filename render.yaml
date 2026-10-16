@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: smartrin2-server
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    plan: starter          # persistent disk ke liye paid plan chahiye
+    envVars:
+      - key: ADMIN_KEY
+        sync: false        # deploy ke time apni secret key daalna
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: smartrin-data
+      mountPath: /data
+      sizeGB: 20
