@@ -44,6 +44,9 @@ dialog::backdrop{background:#000a}
 .row{display:flex;gap:10px}.go.sec{background:#2a2545}
 .m .ed{right:auto;left:6px}
 .empty{grid-column:1/-1}
+.crow{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.crow b{font-family:monospace;font-size:15px;cursor:pointer}.crow em{font-style:normal;font-size:12px}
+.used{color:#ff6b6b}.free{color:#4ade80}
 </style></head><body>
 <div class="wrap">
   <header>
@@ -60,6 +63,11 @@ dialog::backdrop{background:#000a}
     <input id="key" type="password" placeholder="Apni secret key">
     <label>Title</label>
     <input id="title" type="text" placeholder="Movie ka naam">
+    <label>Category</label>
+    <input id="cat" type="text" list="cats" placeholder="Jaise Action, Comedy, Web Series">
+    <datalist id="cats"></datalist>
+    <label>Language</label>
+    <input id="lang" type="text" placeholder="Jaise Hindi, Tamil (comma se alag)">
     <label>Description</label>
     <textarea id="desc" placeholder="Short kahani / details"></textarea>
     <label>Video</label>
@@ -76,12 +84,23 @@ dialog::backdrop{background:#000a}
   </div>
 
   <div class="card">
+    <h2>Subscription codes</h2>
+    <div class="row"><div style="flex:1"><label>Kitne din</label><input id="cdays" type="text" inputmode="numeric" value="30"></div>
+    <div style="flex:1"><label>Kitne code</label><input id="ccount" type="text" inputmode="numeric" value="1"></div></div>
+    <div class="row"><button class="go sec" onclick="loadCodes()">Refresh</button><button class="go" onclick="makeCodes()">Code banao</button></div>
+    <div id="cmsg" style="margin-top:8px;font-size:13px;color:var(--mut)">Code pe tap karo = copy</div>
+    <div id="codes"></div>
+  </div>
+
+  <div class="card">
     <h2>Uploaded movies</h2>
     <div id="list" class="grid"></div>
   </div>
 </div>
 <dialog id="dlg"><h2>Movie edit karo</h2>
   <label>Title</label><input id="et" type="text">
+  <label>Category</label><input id="ecat" type="text" list="cats">
+  <label>Language</label><input id="elang" type="text">
   <label>Description</label><textarea id="edesc"></textarea>
   <label>Naya poster (optional)</label>
   <div class="drop" onclick="document.getElementById('ef').click()"><img id="ep" alt=""><span class="ic" id="ei">🖼️</span>
@@ -97,7 +116,7 @@ function say(t,c){$('msg').textContent=t;$('msg').style.color=c||'#9a95b8'}
 $('vf').onchange=e=>{const f=e.target.files[0];$('vn').textContent=f?f.name+' ('+(f.size/1048576).toFixed(1)+' MB)':'Video chuno'};
 $('tf').onchange=e=>{const f=e.target.files[0];if(!f)return;
   $('tp').src=URL.createObjectURL(f);$('tp').style.display='block';$('ti').style.display='none';$('tn').textContent=f.name};
-function reset(){$('title').value='';$('desc').value='';$('vf').value='';$('tf').value='';
+function reset(){$('lang').value='';$('title').value='';$('desc').value='';$('vf').value='';$('tf').value='';
   $('vn').textContent='Video chuno';$('tn').textContent='Poster chuno (optional)';
   $('tp').style.display='none';$('ti').style.display='block';$('bar').style.display='none';$('pct').style.display='none';$('stat').textContent='';$('fill').style.width='0'}
 function fmt(s){return s<60?s+' sec':Math.floor(s/60)+' min '+(s%60)+' sec'}
@@ -154,7 +173,7 @@ async function upload(){
     say('Finishing...');
     const f=new FormData();
     f.append('uploadId',id);f.append('ext',ext);f.append('chunks',String(total));f.append('size',String(v.size));
-    f.append('title',$('title').value||v.name);f.append('description',$('desc').value);
+    f.append('title',$('title').value||v.name);f.append('description',$('desc').value);f.append('category',$('cat').value);f.append('language',$('lang').value);
     if($('tf').files[0]) f.append('thumb',$('tf').files[0]);
     const r=await fetch('/api/finish',{method:'POST',headers:H(),body:f});
     if(!r.ok) throw new Error('Finish error '+r.status);
@@ -165,7 +184,7 @@ async function upload(){
 }
 let EDIT=null;
 function openEdit(m){
-  EDIT=m;$('et').value=m.title;$('edesc').value=m.description||'';$('ef').value='';
+  EDIT=m;$('et').value=m.title;$('edesc').value=m.description||'';$('ef').value='';$('ecat').value=m.category||'';$('elang').value=m.language||'';
   if(m.thumbPath){$('ep').src=m.thumbPath;$('ep').style.display='block';$('ei').style.display='none'}
   else{$('ep').style.display='none';$('ei').style.display='block'}
   $('en').textContent='Poster badlo (optional)';$('emsg').textContent='';$('dlg').showModal();
@@ -174,7 +193,7 @@ $('ef').onchange=e=>{const f=e.target.files[0];if(!f)return;
   $('ep').src=URL.createObjectURL(f);$('ep').style.display='block';$('ei').style.display='none';$('en').textContent=f.name};
 async function saveEdit(){
   const key=$('key').value||localStorage.getItem('adminKey')||'';
-  const f=new FormData();f.append('title',$('et').value);f.append('description',$('edesc').value);
+  const f=new FormData();f.append('title',$('et').value);f.append('description',$('edesc').value);f.append('category',$('ecat').value);f.append('language',$('elang').value);
   if($('ef').files[0]) f.append('thumb',$('ef').files[0]);
   $('sv').disabled=true;
   const r=await fetch('/api/movies/'+EDIT.id,{method:'PUT',headers:{'x-admin-key':key},body:f});
@@ -183,12 +202,12 @@ async function saveEdit(){
   else{$('emsg').textContent=r.status==401?'Admin key galat hai (upar wale card me daalo)':'Error '+r.status;$('emsg').style.color='#ff6b6b'}
 }
 async function load(){
-  const r=await fetch('/api/movies');const a=await r.json();const L=$('list');L.innerHTML='';
+  const r=await fetch('/api/movies');const a=await r.json();const L=$('list');L.innerHTML='';$('cats').innerHTML=[...new Set(a.map(m=>m.category).filter(Boolean))].map(c=>'<option value="'+c.replace(/"/g,'&quot;')+'">').join('');
   if(!a.length){L.innerHTML='<div class="empty">Abhi koi movie nahi hai</div>';return}
   a.forEach(m=>{
     const d=document.createElement('div');d.className='m';
     d.innerHTML=(m.thumbPath?'<img src="'+m.thumbPath+'" alt="">':'<div class="ph">🎞️</div>')+'<button class="ed" title="Edit">✎</button><button class="del" title="Delete">✕</button><span></span>';
-    d.querySelector('span').textContent=m.title;
+    d.querySelector('span').textContent=m.title+(m.category?' · '+m.category:'');
     d.querySelector('.ed').onclick=()=>openEdit(m);
     d.querySelector('.del').onclick=async()=>{
       if(!confirm('"'+m.title+'" delete karein?'))return;
@@ -197,5 +216,17 @@ async function load(){
       if(r.ok)load();else say('Delete ke liye sahi admin key daalo','#ff6b6b')};
     L.appendChild(d)});
 }
-load();
+async function loadCodes(){
+  const k=$('key').value||localStorage.getItem('adminKey')||'';
+  const r=await fetch('/api/codes',{headers:{'x-admin-key':k}});const L=$('codes');
+  if(!r.ok){L.innerHTML='<div class="empty">Upar admin key daalo, phir Refresh dabao</div>';return}
+  const a=await r.json();
+  L.innerHTML=a.length?a.map(c=>'<div class="crow"><b onclick="navigator.clipboard.writeText(\''+c.code+'\');$(\'cmsg\').textContent=\'Copy ho gaya: '+c.code+'\'">'+c.code+'</b><span>'+c.days+' din</span><em class="'+(c.usedBy?'used':'free')+'">'+(c.usedBy?'Used':'Unused')+'</em></div>').join(''):'<div class="empty">Abhi koi code nahi</div>';
+}
+async function makeCodes(){
+  const k=$('key').value||localStorage.getItem('adminKey')||'';
+  const r=await fetch('/api/codes',{method:'POST',headers:{'x-admin-key':k,'Content-Type':'application/json'},body:JSON.stringify({days:$('cdays').value,count:$('ccount').value})});
+  if(r.ok){$('cmsg').textContent='Code ban gaye';loadCodes()}else $('cmsg').textContent=r.status==401?'Admin key galat hai':'Error '+r.status;
+}
+load();loadCodes();
 </script></body></html>

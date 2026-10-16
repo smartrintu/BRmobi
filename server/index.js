@@ -17,6 +17,7 @@ app.post('/api/movies', auth, upload.fields([{ name: 'video', maxCount: 1 }, { n
   (q, s) => {
     if (!q.files || !q.files.video) return s.status(400).json({ error: 'video required' });
     const m = { id: crypto.randomUUID(), title: q.body.title || 'Untitled', description: q.body.description || '',
+      category: String(q.body.category || '').trim() || 'General', language: String(q.body.language || '').trim(),
       videoPath: '/uploads/' + q.files.video[0].filename,
       thumbPath: q.files.thumb ? '/uploads/' + q.files.thumb[0].filename : '' };
     const all = read(); all.push(m); write(all);
@@ -60,6 +61,7 @@ app.post('/api/finish', auth, upload.single('thumb'), (q, s) => {
   fs.renameSync(tmpFile(id), path.join(UP, name));
   fs.unlink(metaFile(id), () => {});
   const m = { id: crypto.randomUUID(), title: q.body.title || 'Untitled', description: q.body.description || '',
+    category: String(q.body.category || '').trim() || 'General', language: String(q.body.language || '').trim(),
     videoPath: '/uploads/' + name, thumbPath: q.file ? '/uploads/' + q.file.filename : '' };
   const all = read(); all.push(m); write(all);
   s.json(m);
@@ -70,11 +72,38 @@ app.put('/api/movies/:id', auth, upload.single('thumb'), (q, s) => {
   if (!m) { if (q.file) fs.unlink(q.file.path, () => {}); return s.status(404).json({ error: 'not found' }); }
   if (typeof q.body.title === 'string' && q.body.title.trim()) m.title = q.body.title.trim();
   if (typeof q.body.description === 'string') m.description = q.body.description;
+  if (typeof q.body.category === 'string') m.category = q.body.category.trim() || 'General';
+  if (typeof q.body.language === 'string') m.language = q.body.language.trim();
   if (q.file) {
     if (m.thumbPath) fs.unlink(path.join(__dirname, m.thumbPath), () => {});
     m.thumbPath = '/uploads/' + q.file.filename;
   }
   write(all); s.json(m);
+});
+// ---- Subscription codes ----
+const CODES = path.join(__dirname, 'codes.json');
+const readCodes = () => fs.existsSync(CODES) ? JSON.parse(fs.readFileSync(CODES)) : [];
+const writeCodes = (a) => fs.writeFileSync(CODES, JSON.stringify(a, null, 2));
+app.get('/api/codes', auth, (q, s) => s.json(readCodes().reverse()));
+app.post('/api/codes', auth, express.json(), (q, s) => {
+  const days = Math.max(1, Math.min(3650, parseInt(q.body.days) || 30));
+  const count = Math.max(1, Math.min(50, parseInt(q.body.count) || 1));
+  const all = readCodes(), made = [];
+  for (let i = 0; i < count; i++) {
+    const c = { code: crypto.randomBytes(5).toString('hex').toUpperCase(), days, createdAt: Date.now(), usedBy: null, usedAt: null };
+    all.push(c); made.push(c);
+  }
+  writeCodes(all); s.json(made);
+});
+app.post('/api/redeem', express.json(), (q, s) => {
+  const code = String(q.body.code || '').trim().toUpperCase(), device = String(q.body.device || '').slice(0, 64);
+  const all = readCodes(), c = all.find(x => x.code === code);
+  if (!c || !device) return s.status(404).json({ error: 'Code galat hai' });
+  if (c.usedBy && c.usedBy !== device) return s.status(409).json({ error: 'Ye code pehle use ho chuka hai' });
+  if (!c.usedBy) { c.usedBy = device; c.usedAt = Date.now(); writeCodes(all); }
+  const expiresAt = c.usedAt + c.days * 86400000;
+  if (expiresAt < Date.now()) return s.status(410).json({ error: 'Code expire ho gaya' });
+  s.json({ expiresAt, days: c.days });
 });
 // Admin page ab seedha root URL par: https://<your-url>/   (/admin bhi chalega)
 app.use(express.static(path.join(__dirname, 'admin')));
